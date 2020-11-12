@@ -9,6 +9,87 @@ import time
 import random
 from itertools import product
 
+def get_layer_type_to_idx():
+  layer_to_idx = {'InputLayer':0, 'DepthwiseConv2D': 1, 'SeparableConv2D':1, 'Conv2D':1, 'Add':2, 'Concatenate':2, 'Dense':3}
+  return layer_to_idx
+
+def get_layer_metadata(model):
+  metadata = []
+  for layer in model.layers:
+    layer_features = {}
+    layer_features['name'] = layer.output.name
+    layer_features['count_params'] = layer.count_params()
+    layer_features['type'] = layer.__class__.__name__
+    #print(layer.output.name,layer.count_params())
+    if type(layer.input) == type(list()):
+      #print("\t" + str([layer.input[i].name for i in range(len(layer.input))]))
+      layer_features['input'] = [layer.input[i].name for i in range(len(layer.input))]
+    else:
+      #print("\t" + layer.input.name)
+      layer_features['input'] = [layer.input.name]
+    metadata.append(layer_features)
+  return metadata
+
+def build_graph_rep(metadata,layer_type_to_idx):
+  attribute_list = []
+  name_to_idx = {}
+  adj_size = 0
+  for i in range(len(metadata)):
+    layer_features = metadata[i]
+    layer_type = layer_features['type']
+    if layer_type in layer_type_to_idx:
+      adj_size += 1
+  adj_matrix = np.zeros((adj_size,adj_size))
+  idx = 0
+  for i in range(0, len(metadata)):
+    layer_features = metadata[i]
+    name = layer_features['name']
+    count_params = layer_features['count_params']
+    layer_type = layer_features['type']
+    layer_inputs = layer_features['input']
+
+    if layer_type in layer_type_to_idx:
+      layer_type_idx = layer_type_to_idx[layer_type]
+    else:
+      for entry in layer_inputs:
+        if entry != name:
+          name_to_idx[name] = name_to_idx[entry]
+          break
+      continue
+
+    name_to_idx[name] = idx
+
+    #fill in adjacency matrix
+    for entry in layer_inputs:
+      if entry != name:
+        input_idx = name_to_idx[entry]
+        adj_matrix[input_idx][idx] = 1   
+    
+    #append attribute list
+    #attribute_list.append((layer_type_idx,count_params))
+    attribute_list.append(layer_type_idx)
+    attribute_list.append(count_params)
+
+
+
+    idx += 1
+
+  #post process attribute list
+  #max_layer_type_idx = max([layer_type_to_idx[entry] for entry in layer_type_to_idx])
+  #for i in range(len(attribute_list)):
+  #  layer_type_idx = attribute_list[i][0]
+  #  count_params = attribute_list[i][1]
+  #  new_entry = np.array([count_params])
+  #  attribute_list[i] = new_entry
+  attribute_list = np.array(attribute_list)
+  return attribute_list,adj_matrix
+
+def flatten_graph(attr_list,adj_matrix):
+    attr_list = attr_list.reshape((attr_list.shape[0]*attr_list.shape[1],1))
+    adj_matrix = adj_matrix.reshape((adj_matrix.shape[0]*adj_matrix.shape[1],1))
+    return np.concatenate((attr_list,adj_matrix))
+
+
 def plain_cnn_layer(input,filter,stride):
   output = Activation(activation='relu')(BatchNormalization()(Conv2D(filters=filter,kernel_size=(3,3),strides=(stride,stride),padding="same")(input)))
   return output
@@ -37,11 +118,13 @@ def output_latency_data(latency_data):
     f.write(str(max(latency_data)) + "\n")
     f.close()
 
-def output_nn_data(network):
+def output_nn_data(model):
+    layer_type_to_idx = get_layer_type_to_idx()
+    attr_list,adj_matrix = build_graph_rep(get_layer_metadata(model),layer_type_to_idx)
     f = open("features.txt","a")
-    f.write(str(network[0]))
-    for i in range(1,len(network)):
-        f.write("\t" + str(network[i]))
+    f.write(str(attr_list[0]))
+    for i in range(1,len(attr_list)):
+        f.write("\t" + str(attr_list[i]))
     f.write("\n")
     f.close()
 
@@ -63,6 +146,6 @@ def run_test():
     #model.summary()
     tf.keras.backend.clear_session()
     output_latency_data(latency_data)
-    output_nn_data(network)
+    output_nn_data(model)
 
 run_test()

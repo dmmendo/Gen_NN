@@ -64,22 +64,20 @@ def build_graph_rep(metadata,layer_type_to_idx):
         adj_matrix[input_idx][idx] = 1   
     
     #append attribute list
-    attribute_list.append((layer_type_idx,count_params))
+    #attribute_list.append((layer_type_idx,count_params))
+    attribute_list.append(layer_type_idx)
+    attribute_list.append(count_params)
+
 
     idx += 1
 
   #post process attribute list
-  max_layer_type_idx = max([layer_type_to_idx[entry] for entry in layer_type_to_idx])
-  for i in range(len(attribute_list)):
-    layer_type_idx = attribute_list[i][0]
-    count_params = attribute_list[i][1]
-    """
-    new_entry = np.zeros((max_layer_type_idx+1))
-    new_entry[-1] = count_params
-    new_entry[layer_type_idx] = 1
-    """
-    new_entry = np.array([count_params])
-    attribute_list[i] = new_entry
+  #max_layer_type_idx = max([layer_type_to_idx[entry] for entry in layer_type_to_idx])
+  #for i in range(len(attribute_list)):
+  #  layer_type_idx = attribute_list[i][0]
+  #  count_params = attribute_list[i][1]
+  #  new_entry = np.array([count_params])
+  #  attribute_list[i] = new_entry
   attribute_list = np.array(attribute_list)
   return attribute_list,adj_matrix
 
@@ -126,9 +124,9 @@ def output_nn_data(model):
     layer_type_to_idx = get_layer_type_to_idx()
     attr_list,adj_matrix = build_graph_rep(get_layer_metadata(model),layer_type_to_idx)
     f = open("features.txt","a")
-    f.write(str(attr_list[0][0]))
+    f.write(str(attr_list[0]))
     for i in range(1,len(attr_list)):
-        f.write("\t" + str(attr_list[i][0]))
+        f.write("\t" + str(attr_list[i]))
     f.write("\n")
     f.close()
 
